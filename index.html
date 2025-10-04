@@ -31,6 +31,14 @@
             animation: sphere-spin 1.5s linear infinite;
             filter: drop-shadow(0 0 10px rgba(229, 62, 62, 0.7)); /* Ombre rougeoyer */
         }
+        /* Animation pour le spinner du bouton */
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .button-spinner {
+            animation: spin 1s linear infinite;
+        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col justify-center items-center text-gray-100 p-4 transition-all duration-500">
@@ -43,11 +51,22 @@
                 Pour maintenir la sécurité et l'expérience optimisée du réseau SPHERE SHADOW, nous utilisons des "cookies de session". Acceptez-vous le protocole ?
             </p>
             <div class="flex justify-end space-x-4">
-                <button onclick="handleCookie(false)" class="px-5 py-2 bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600 transition duration-300 shadow-md">
+                <button onclick="handleCookieAcceptance(false)" class="px-5 py-2 bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600 transition duration-300 shadow-md">
                     Refuser
                 </button>
-                <button onclick="handleCookie(true)" class="px-5 py-2 bg-red-800 text-white font-semibold rounded-lg hover:bg-red-700 transition duration-300 shadow-lg shadow-red-900/50">
-                    Accepter et Continuer
+                
+                <!-- BOUTON D'ACCEPTATION AVEC CHARGEMENT INTÉGRÉ -->
+                <button onclick="handleCookieAcceptance(true)" id="accept-cookie-button" 
+                        class="px-5 py-2 bg-red-800 text-white font-semibold rounded-lg hover:bg-red-700 transition duration-300 shadow-lg shadow-red-900/50 relative overflow-hidden flex items-center justify-center min-w-[12rem]">
+                    <span id="cookie-button-text">Accepter et Continuer</span>
+                    
+                    <!-- Le Loader qui apparaît sur le bouton -->
+                    <span id="cookie-loader" class="absolute inset-0 bg-red-800 flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-300 text-sm font-normal">
+                        <svg class="button-spinner h-5 w-5 text-white mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.836 4.305c.291 1.255.438 2.544.438 3.824 0 4.418-3.582 8-8 8s-8-3.582-8-8c0-1.28.147-2.569.438-3.824m-4.882-1.571a.75.75 0 010-1.492.75.75 0 010 1.492zM20 12h2a10 10 0 00-20 0h2zm-8-8v2"></path>
+                        </svg>
+                        Analyse...
+                    </span>
                 </button>
             </div>
         </div>
@@ -129,12 +148,17 @@
         // === Configuration et Variables Globales ===
         const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
         const LOADING_DURATION_MS = 5000;
+        const COOKIE_LOADING_DURATION_MS = 3000; // Nouveau: 3 secondes de chargement pour le cookie
         const SECRET_CODES = ['95741', 'ERVIS', 'SHADOW1']; // Les codes secrets, sécurisés dans le JS
         const STORAGE_KEY = 'lastCookieCheck';
         const DOWNLOAD_URL = 'https://download1324.mediafire.com/elrhudzhi7egOf-ywAD086yPBeBHmLuhno6u_x0bxmZ93dRdnt_AdYoqPUL_wJd7nfN6y8XmwZ7UbdZuHbmWjFNTtRc2kOVJVy-p09tl_y77cyvkxe30ukub3r5EkILF_YMNWReZ8J3-XyHgwWXonGnUOvp1_SU0BLZNRfZCpCQi/zmd22b97ksn9ibb/SHADOW+-+John+Wick+2014.mp4';
         
         // === Références DOM ===
         const cookieModal = document.getElementById('cookie-modal');
+        const acceptCookieButton = document.getElementById('accept-cookie-button');
+        const cookieButtonText = document.getElementById('cookie-button-text');
+        const cookieLoader = document.getElementById('cookie-loader');
+        
         const accessGate = document.getElementById('access-gate');
         const loadingScreen = document.getElementById('loading-screen');
         const successContent = document.getElementById('success-content');
@@ -191,13 +215,25 @@
             }, 700); // 700ms pour correspondre à la transition-opacity
         }
 
-        /** Gère le clic sur Accepter/Refuser les cookies. */
-        window.handleCookie = function(accepted) {
-            // Sauvegarde la date dans localStorage pour une réapparition dans une semaine
-            localStorage.setItem(STORAGE_KEY, Date.now());
+        /** Gère le clic sur Accepter/Refuser les cookies, avec chargement si accepté. */
+        window.handleCookieAcceptance = function(accepted) {
+            if (accepted) {
+                // ACCEPTÉ: 3s de chargement, enregistrement, puis passage à la porte d'accès.
+                acceptCookieButton.disabled = true;
+                cookieButtonText.style.visibility = 'hidden';
+                cookieLoader.classList.remove('pointer-events-none', 'opacity-0');
+                cookieLoader.classList.add('opacity-100');
 
-            // Cache la modale avec animation et passe à la page principale (gate)
-            hideModal(cookieModal, showGate);
+                setTimeout(() => {
+                    localStorage.setItem(STORAGE_KEY, Date.now()); // Enregistre l'acceptation
+                    hideModal(cookieModal, showGate);
+                }, COOKIE_LOADING_DURATION_MS);
+
+            } else {
+                // REFUSÉ: Rediriger immédiatement vers Google et ne RIEN enregistrer.
+                // Cela garantit que la modale réapparaît si l'utilisateur revient.
+                window.location.href = 'https://www.google.com/';
+            }
         }
 
         /** Affiche le portail d'accès au contenu (la page principale). */
