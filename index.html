@@ -39,6 +39,18 @@
         .button-spinner {
             animation: spin 1s linear infinite;
         }
+        
+        /* === NOUVEAU: CSS pour le compteur d'alerte rouge clignotant === */
+        @keyframes blink-red {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.2; }
+        }
+        .lockout-warning {
+            color: #f56565 !important; /* Rouge d'alerte vif */
+            animation: blink-red 0.8s ease-in-out infinite;
+            font-weight: bold;
+        }
+        /* === FIN NOUVEAU CSS === */
     </style>
 </head>
 <body class="min-h-screen flex flex-col justify-center items-center text-gray-100 p-4 transition-all duration-500">
@@ -88,10 +100,13 @@
         <h1 class="text-4xl md:text-5xl font-extrabold text-red-600 mb-6 tracking-wide">
             SPHERE SHADOW
         </h1>
-        <p class="text-red-400 text-lg mb-8 text-center border-b border-red-800 pb-4 w-full">
+        <p class="text-red-400 text-lg mb-4 text-center border-b border-red-800 pb-4 w-full">
             AUTHENTIFICATION REQUISE : CLÉ D'ACCÈS
         </p>
-
+        
+        <!-- NOUVEAU: Statut de Verrouillage/Tentatives -->
+        <p id="lockout-status" class="mt-2 mb-6 text-center text-red-500 font-mono text-lg min-h-[1.5rem]"></p>
+        
         <form id="access-form" class="w-full">
             <input type="password" id="secret-code" placeholder="Entrez la clé secrète..." required
                    class="w-full p-4 mb-4 text-center bg-gray-800 border-2 border-red-700 rounded-lg text-white placeholder-red-300 focus:outline-none focus:ring-2 focus:ring-red-500 transition duration-300 text-xl tracking-widest shadow-inner shadow-black/50">
@@ -148,10 +163,17 @@
         // === Configuration et Variables Globales ===
         const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
         const LOADING_DURATION_MS = 5000;
-        const COOKIE_LOADING_DURATION_MS = 3000; // Nouveau: 3 secondes de chargement pour le cookie
-        const SECRET_CODES = ['95741', 'ERVIS', 'SHADOW1']; // Les codes secrets, sécurisés dans le JS
+        const COOKIE_LOADING_DURATION_MS = 3000;
+        const SECRET_CODES = ['95741', 'ERVIS', 'SHADOW1'];
         const STORAGE_KEY = 'lastCookieCheck';
         const DOWNLOAD_URL = 'https://download1324.mediafire.com/elrhudzhi7egOf-ywAD086yPBeBHmLuhno6u_x0bxmZ93dRdnt_AdYoqPUL_wJd7nfN6y8XmwZ7UbdZuHbmWjFNTtRc2kOVJVy-p09tl_y77cyvkxe30ukub3r5EkILF_YMNWReZ8J3-XyHgwWXonGnUOvp1_SU0BLZNRfZCpCQi/zmd22b97ksn9ibb/SHADOW+-+John+Wick+2014.mp4';
+        
+        // NOUVEAUX CONSTANTES POUR LE VERROUILLAGE
+        const MAX_ATTEMPTS = 3;
+        const LOCKOUT_DURATION_MS = 24 * 60 * 60 * 1000; // 24 heures
+        const WARNING_TIME_MS = 3 * 60 * 60 * 1000; // 3 heures pour l'alerte rouge
+        const ATTEMPTS_KEY = 'failedAttempts';
+        const LOCKOUT_EXPIRY_KEY = 'lockoutExpiry';
         
         // === Références DOM ===
         const cookieModal = document.getElementById('cookie-modal');
@@ -168,7 +190,9 @@
         const loadingText = document.getElementById('loading-text');
         const loadingBar = document.getElementById('loading-bar');
         const downloadButton = document.getElementById('download-button');
+        const lockoutStatusElement = document.getElementById('lockout-status'); // NOUVEAU
 
+        let timerTimeoutId = null; // Pour gérer l'intervalle de mise à jour du compteur
 
         // === Fonctions de Contrôle de l'Affichage ===
 
@@ -178,22 +202,17 @@
             const now = Date.now();
 
             if (!lastCheck || (now - parseInt(lastCheck) > ONE_WEEK_MS)) {
-                // Si la clé n'existe pas ou si plus d'une semaine s'est écoulée, afficher la modale
                 showModal(cookieModal);
             } else {
-                // Sinon, passer directement à la porte d'accès
                 showGate();
             }
         }
 
         /** Affiche un élément avec une animation fluide. */
         function showModal(element) {
-            // S'assure que l'élément est prêt à apparaître
             element.classList.remove('pointer-events-none', 'opacity-0');
-            // Force le navigateur à reconnaître le changement d'état avant l'animation
             requestAnimationFrame(() => {
                 element.classList.add('opacity-100');
-                // Effet de zoom sur le contenu de la modale (si applicable)
                 const modalContent = element.querySelector('div');
                 if (modalContent && modalContent.classList.contains('scale-95')) modalContent.classList.remove('scale-95');
             });
@@ -201,21 +220,19 @@
 
         /** Cache un élément avec une animation fluide. */
         function hideModal(element, callback) {
-            // Effet de zoom inverse sur le contenu de la modale (si applicable)
             const modalContent = element.querySelector('div');
             if (modalContent && modalContent.classList.contains('scale-95')) modalContent.classList.add('scale-95');
 
             element.classList.remove('opacity-100');
             element.classList.add('opacity-0');
 
-            // Attend la fin de l'animation pour masquer complètement l'élément
             setTimeout(() => {
                 element.classList.add('pointer-events-none');
                 if (callback) callback();
-            }, 700); // 700ms pour correspondre à la transition-opacity
+            }, 700);
         }
 
-        /** Gère le clic sur Accepter/Refuser les cookies, avec chargement si accepté. */
+        /** Gère le clic sur Accepter/Refuser les cookies. */
         window.handleCookieAcceptance = function(accepted) {
             if (accepted) {
                 // ACCEPTÉ: 3s de chargement, enregistrement, puis passage à la porte d'accès.
@@ -225,14 +242,101 @@
                 cookieLoader.classList.add('opacity-100');
 
                 setTimeout(() => {
-                    localStorage.setItem(STORAGE_KEY, Date.now()); // Enregistre l'acceptation
+                    localStorage.setItem(STORAGE_KEY, Date.now());
                     hideModal(cookieModal, showGate);
                 }, COOKIE_LOADING_DURATION_MS);
 
             } else {
-                // REFUSÉ: Rediriger immédiatement vers Google et ne RIEN enregistrer.
-                // Cela garantit que la modale réapparaît si l'utilisateur revient.
+                // REFUSÉ: Rediriger immédiatement vers Google.
                 window.location.href = 'https://www.google.com/';
+            }
+        }
+
+        /** Convertit les millisecondes en format H:MM:SS. */
+        function msToTime(duration) {
+            let seconds = Math.floor((duration / 1000) % 60);
+            let minutes = Math.floor((duration / (1000 * 60)) % 60);
+            let hours = Math.floor((duration / (1000 * 60 * 60)));
+
+            hours = (hours < 10) ? "0" + hours : hours;
+            minutes = (minutes < 10) ? "0" + minutes : minutes;
+            seconds = (seconds < 10) ? "0" + seconds : seconds;
+
+            return hours + ":" + minutes + ":" + seconds;
+        }
+
+        /** Met à jour le compteur de verrouillage en direct et gère l'effet d'alerte. */
+        function updateLockoutTimer() {
+            const expiryTime = localStorage.getItem(LOCKOUT_EXPIRY_KEY);
+            if (!expiryTime) {
+                // Si pas d'expiration, efface le statut et arrête la boucle
+                lockoutStatusElement.textContent = '';
+                lockoutStatusElement.classList.remove('lockout-active', 'lockout-warning');
+                return;
+            }
+
+            const remainingTime = parseInt(expiryTime) - Date.now();
+
+            if (remainingTime <= 0) {
+                // Verrouillage expiré
+                localStorage.removeItem(LOCKOUT_EXPIRY_KEY);
+                localStorage.removeItem(ATTEMPTS_KEY);
+                checkLockoutStatus(); // Recheck pour réactiver l'accès
+                return;
+            }
+
+            // Affichage du compteur
+            const timeString = msToTime(remainingTime);
+            lockoutStatusElement.textContent = `ACCÈS BLOQUÉ. Reconnexion dans ${timeString}`;
+            
+            // Effet d'alerte rouge clignotant
+            if (remainingTime < WARNING_TIME_MS) {
+                lockoutStatusElement.classList.add('lockout-warning');
+            } else {
+                lockoutStatusElement.classList.remove('lockout-warning');
+            }
+
+            // Met à jour dans 1 seconde
+            timerTimeoutId = setTimeout(updateLockoutTimer, 1000);
+        }
+        
+        /** Vérifie si l'utilisateur est verrouillé et met à jour l'état de la porte d'accès. */
+        function checkLockoutStatus() {
+            // Arrête le timer précédent pour éviter les boucles multiples
+            if (timerTimeoutId) clearTimeout(timerTimeoutId); 
+            
+            const expiryTime = localStorage.getItem(LOCKOUT_EXPIRY_KEY);
+            const attempts = parseInt(localStorage.getItem(ATTEMPTS_KEY) || 0);
+            const accessButton = accessForm.querySelector('button[type="submit"]');
+
+            if (expiryTime && parseInt(expiryTime) > Date.now()) {
+                // Utilisateur est VERROUILLÉ
+                secretCodeInput.disabled = true;
+                accessButton.disabled = true;
+                accessButton.textContent = "VERROUILLÉ";
+                
+                displayMessage("Le protocole de sécurité est activé. Tentative d'intrusion détectée.", true);
+                
+                // Démarre le compte à rebours en direct
+                updateLockoutTimer();
+                return true;
+            } else {
+                // Utilisateur n'est PAS verrouillé
+                localStorage.removeItem(LOCKOUT_EXPIRY_KEY); // Nettoie si le lock a expiré
+                
+                secretCodeInput.disabled = false;
+                accessButton.disabled = false;
+                accessButton.textContent = "ACTIVER LE PROTOCOLE";
+                
+                lockoutStatusElement.classList.remove('lockout-warning');
+
+                // Affiche le nombre de tentatives s'il y en a
+                if (attempts > 0) {
+                    lockoutStatusElement.textContent = `Tentative d'accès: ${attempts}/${MAX_ATTEMPTS}`;
+                } else {
+                    lockoutStatusElement.textContent = '';
+                }
+                return false;
             }
         }
 
@@ -240,31 +344,29 @@
         function showGate() {
             accessGate.classList.remove('opacity-0', 'pointer-events-none');
             accessGate.classList.add('opacity-100');
+            checkLockoutStatus(); // Vérifie l'état de sécurité
         }
-
+        
         /** Déclenche et gère l'écran de chargement de 5 secondes (pour l'initialisation). */
         function startLoading() {
-            hideModal(accessGate); // Cache le formulaire d'accès
-            showModal(loadingScreen); // Affiche le loader
+            hideModal(accessGate);
+            showModal(loadingScreen);
 
             let start = Date.now();
             let timer = 0;
             const interval = 50; 
             
-            // Réinitialise le texte pour l'initialisation
             loadingText.textContent = `INITIATION DU PROTOCOLE (0%)...`;
 
             const loadingInterval = setInterval(() => {
                 timer = Date.now() - start;
                 let progress = Math.min(100, Math.floor((timer / LOADING_DURATION_MS) * 100));
 
-                // Met à jour la barre de progression et le texte
                 loadingBar.style.width = `${progress}%`;
                 loadingText.textContent = `INITIATION DU PROTOCOLE (${progress}%)...`;
 
                 if (progress >= 100) {
                     clearInterval(loadingInterval);
-                    // 5. Après 5 secondes, passer au contenu final
                     showSuccessPage();
                 }
             }, interval);
@@ -272,9 +374,8 @@
         
         /** Déclenche et gère l'écran de chargement de 5 secondes (pour le téléchargement). */
         window.startDownloadLoading = function() {
-            downloadButton.disabled = true; // Désactiver le bouton pour éviter les clics multiples
+            downloadButton.disabled = true;
             
-            // Cache la page de succès et affiche le loader
             hideModal(successContent);
             showModal(loadingScreen);
 
@@ -282,31 +383,29 @@
             let timer = 0;
             const interval = 50; 
             
-            // Réinitialise le texte pour le téléchargement
             loadingText.textContent = `PRÉPARATION DU TÉLÉCHARGEMENT SÉCURISÉ (0%)...`;
 
             const loadingInterval = setInterval(() => {
                 timer = Date.now() - start;
                 let progress = Math.min(100, Math.floor((timer / LOADING_DURATION_MS) * 100));
 
-                // Met à jour la barre de progression et le texte
                 loadingBar.style.width = `${progress}%`;
                 loadingText.textContent = `PRÉPARATION DU TÉLÉCHARGEMENT SÉCURISÉ (${progress}%)...`;
 
                 if (progress >= 100) {
                     clearInterval(loadingInterval);
-                    // 5. Après 5 secondes, redirection vers le lien Mediafire
+                    // Redirection après le chargement
                     window.location.href = DOWNLOAD_URL;
                 }
             }, interval);
         }
 
 
-        /** Affiche le contenu final (maintenant plein écran avec le bouton de téléchargement). */
+        /** Affiche le contenu final (page de téléchargement). */
         function showSuccessPage() {
-            hideModal(loadingScreen); // Cache le loader
-            showModal(successContent); // Affiche la page de succès
-            if (downloadButton) downloadButton.disabled = false; // Réactiver le bouton si l'utilisateur revient
+            hideModal(loadingScreen);
+            showModal(successContent);
+            if (downloadButton) downloadButton.disabled = false;
         }
 
         /** Affiche un message d'erreur ou de succès temporaire. */
@@ -318,23 +417,48 @@
 
             setTimeout(() => {
                 messageBox.classList.remove('opacity-100');
-            }, isError ? 3000 : 1500); // Garde le message d'erreur plus longtemps
+            }, isError ? 3000 : 1500);
         }
 
         // === Écouteur d'événement pour le formulaire d'accès ===
         accessForm.addEventListener('submit', function(event) {
             event.preventDefault();
+            
+            // Vérifie le verrouillage AVANT de traiter la tentative
+            if (checkLockoutStatus()) {
+                return; 
+            }
+            
             const inputCode = secretCodeInput.value.trim().toUpperCase();
 
             // Vérification sécurisée des codes
             if (SECRET_CODES.includes(inputCode)) {
+                // --- SUCCÈS ---
+                localStorage.removeItem(ATTEMPTS_KEY); // Réinitialise les tentatives
+                localStorage.removeItem(LOCKOUT_EXPIRY_KEY); // Enlève le verrou
+                lockoutStatusElement.textContent = '';
+                
                 displayMessage("ACCÈS AUTORISÉ. Préparation...", false);
-                // Démarre le chargement de 5 secondes pour l'initialisation
                 startLoading();
             } else {
-                // Code incorrect
-                displayMessage("CLÉ D'ACCÈS INVALIDE. Tentative enregistrée.", true);
+                // --- ÉCHEC ---
+                let attempts = parseInt(localStorage.getItem(ATTEMPTS_KEY) || 0) + 1;
+                localStorage.setItem(ATTEMPTS_KEY, attempts);
+
                 secretCodeInput.value = ''; // Efface le champ
+
+                if (attempts >= MAX_ATTEMPTS) {
+                    // Verrouillage déclenché
+                    const expiryTime = Date.now() + LOCKOUT_DURATION_MS;
+                    localStorage.setItem(LOCKOUT_EXPIRY_KEY, expiryTime);
+
+                    displayMessage("CLÉ INVALIDE. ACCÈS TEMPORAIREMENT BLOQUÉ (24h).", true);
+                    checkLockoutStatus(); // Active le timer et verrouille les inputs
+                } else {
+                    // Échec, pas encore verrouillé
+                    displayMessage("CLÉ D'ACCÈS INVALIDE. Tentative enregistrée.", true);
+                    lockoutStatusElement.textContent = `Tentative d'accès: ${attempts}/${MAX_ATTEMPTS}`;
+                }
             }
         });
 
