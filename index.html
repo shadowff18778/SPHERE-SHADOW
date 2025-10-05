@@ -15,7 +15,17 @@
         /* Style global du corps en noir intense */
         body {
             background-color: #0d0d0d; /* Presque noir */
+            /* Assurer que le corps prend toute la hauteur de la fenêtre */
+            height: 100vh;
+            overflow: hidden; /* Empêche tout scroll global lors des transitions */
         }
+        
+        /* Conteneur principal pour assurer que le contenu de succès prend toute la place */
+        #success-content {
+            height: 100vh;
+            width: 100vw;
+        }
+
         /* Animation de chargement spéciale (Sphère qui tourne) */
         @keyframes sphere-spin {
             0% { transform: rotate(0deg) scale(0.8); opacity: 1; }
@@ -31,7 +41,7 @@
             animation: sphere-spin 1.5s linear infinite;
             filter: drop-shadow(0 0 10px rgba(229, 62, 62, 0.7)); /* Ombre rougeoyer */
         }
-        /* Animation pour le spinner du bouton */
+        /* Animation pour le spinner du bouton (utilisé dans le Liquid Fill) */
         @keyframes spin {
             from { transform: rotate(0deg); }
             to { transform: rotate(360deg); }
@@ -57,13 +67,50 @@
             -webkit-backdrop-filter: blur(10px); /* Compatibilité Safari */
             background-color: rgba(30, 41, 59, 0.7); /* bg-slate-800/70 */
         }
+
+        /* === Animation du pulse VPN (Pour simuler la connexion en cours) === */
+        @keyframes pulse-vpn {
+            0% { transform: scale(0.5); opacity: 0.8; }
+            100% { transform: scale(1.5); opacity: 0; }
+        }
+        .pulse-vpn-active {
+            animation: pulse-vpn 2s infinite cubic-bezier(0.66, 0, 0, 1);
+        }
+
+        /* === NOUVEAU : Effet de remplissage liquide sur les boutons === */
+        .button-fill-container {
+            position: relative;
+            overflow: hidden;
+            /* Le texte doit toujours être au-dessus de la barre de remplissage */
+        }
+        .button-loader-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: 0%; /* Commence à 0 */
+            transition: width 0.1s linear; /* La transition est contrôlée par JS pour la fluidité */
+            overflow: hidden;
+            z-index: 5; /* Sous le texte principal mais au-dessus du fond du bouton */
+        }
+        .button-text-wrapper {
+            position: relative;
+            z-index: 10; /* Assure que le texte/icône reste au-dessus du remplissage */
+            /* Doit hériter du flex pour centrer */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+            transition: opacity 0.3s;
+        }
     </style>
 </head>
-<body class="min-h-screen flex flex-col justify-center items-center text-gray-100 p-4 transition-all duration-500">
+<body class="min-h-screen flex flex-col justify-center items-center text-gray-100 transition-all duration-500">
 
     <!-- 1. MODALE DE CONSENTEMENT COOKIE -->
-    <div id="cookie-modal" class="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 transition-opacity duration-700 opacity-0 pointer-events-none">
-        <div class="bg-gray-800 border-2 border-red-700 rounded-xl shadow-2xl p-6 md:p-8 mx-4 w-full max-w-md transform transition-all duration-500 scale-95">
+    <div id="cookie-modal" class="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 transition-opacity duration-700 opacity-0 pointer-events-none p-4">
+        <div class="bg-gray-800 border-2 border-red-700 rounded-xl shadow-2xl p-6 md:p-8 mx-auto w-full max-w-md transform transition-all duration-500 scale-95">
             <h2 class="text-xl sm:text-2xl font-bold text-red-400 mb-4 border-b border-red-800 pb-2">ACCÈS PROTOCOLE SHADOW</h2>
             <p class="text-gray-300 mb-6 text-sm sm:text-base">
                 Pour maintenir la sécurité et l'expérience optimisée du réseau SPHERE SHADOW, nous utilisons des "cookies de session". Acceptez-vous le protocole ?
@@ -72,22 +119,29 @@
                 <button onclick="handleCookieAcceptance(false)" class="px-5 py-2 bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600 transition duration-300 shadow-md text-sm sm:text-base">
                     Refuser
                 </button>
+                
+                <!-- BOUTON ACCEPTER AVEC NOUVELLE ANIMATION DE REMPLISSAGE -->
                 <button onclick="handleCookieAcceptance(true)" id="accept-cookie-button" 
-                        class="px-5 py-2 bg-red-800 text-white font-semibold rounded-lg hover:bg-red-700 transition duration-300 shadow-lg shadow-red-900/50 relative overflow-hidden flex items-center justify-center min-w-[12rem] text-sm sm:text-base">
-                    <span id="cookie-button-text">Accepter et Continuer</span>
-                    <span id="cookie-loader" class="absolute inset-0 bg-red-800 flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-300 text-sm font-normal">
-                        <svg class="button-spinner h-5 w-5 text-white mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.836 4.305c.291 1.255.438 2.544.438 3.824 0 4.418-3.582 8-8 8s-8-3.582-8-8c0-1.28.147-2.569.438-3.824m-4.882-1.571a.75.75 0 010-1.492.75.75 0 010 1.492zM20 12h2a10 10 0 00-20 0h2zm-8-8v2"></path>
-                        </svg>
-                        Analyse...
-                    </span>
+                        class="px-5 py-2 bg-red-800 text-white font-semibold rounded-lg hover:bg-red-700 transition duration-300 shadow-lg shadow-red-900/50 relative overflow-hidden flex items-center justify-center min-w-[12rem] text-sm sm:text-base button-fill-container">
+                    
+                    <span id="cookie-button-text" class="button-text-wrapper">Accepter et Continuer</span>
+                    
+                    <!-- Overlay de Remplissage Liquide -->
+                    <div id="cookie-loader-overlay" class="button-loader-overlay bg-red-600/70">
+                        <span id="cookie-loader-text" class="button-text-wrapper absolute inset-0 opacity-0">
+                            <svg class="button-spinner h-5 w-5 text-white mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.836 4.305c.291 1.255.438 2.544.438 3.824 0 4.418-3.582 8-8 8s-8-3.582-8-8c0-1.28.147-2.569.438-3.824m-4.882-1.571a.75.75 0 010-1.492.75.75 0 010 1.492zM20 12h2a10 10 0 00-20 0h2zm-8-8v2"></path>
+                            </svg>
+                            Analyse...
+                        </span>
+                    </div>
                 </button>
             </div>
         </div>
     </div>
 
     <!-- 2. ÉCRAN DE CHARGEMENT STYLÉ (Global) -->
-    <div id="loading-screen" class="fixed inset-0 bg-[#0d0d0d] flex flex-col items-center justify-center z-40 transition-opacity duration-500 opacity-0 pointer-events-none">
+    <div id="loading-screen" class="fixed inset-0 bg-[#0d0d0d] flex flex-col items-center justify-center z-40 transition-opacity duration-500 opacity-0 pointer-events-none p-4">
         <div class="sphere-loader"></div>
         <p id="loading-text" class="mt-8 text-lg sm:text-xl font-mono text-red-500 tracking-wider text-center px-4">
             INITIATION DU PROTOCOLE (0%)...
@@ -98,7 +152,7 @@
     </div>
 
     <!-- 3. PORTAIL D'ACCÈS SÉCURISÉ (Contenu principal) -->
-    <div id="access-gate" class="flex flex-col items-center justify-center w-full max-w-xl p-8 bg-gray-900 border-2 border-red-900 rounded-xl shadow-2xl shadow-red-900/60 transition-opacity duration-500 opacity-0 pointer-events-none">
+    <div id="access-gate" class="flex flex-col items-center justify-center w-full max-w-xl p-8 bg-gray-900 border-2 border-red-900 rounded-xl shadow-2xl shadow-red-900/60 transition-opacity duration-500 opacity-0 pointer-events-none invisible">
         <h1 class="text-3xl sm:text-4xl md:text-5xl font-extrabold text-red-600 mb-6 tracking-wide">
             SPHERE SHADOW
         </h1>
@@ -112,67 +166,141 @@
             <input type="password" id="secret-code" placeholder="Entrez la clé secrète..." required
                    class="w-full p-4 mb-4 text-center bg-gray-800 border-2 border-red-700 rounded-lg text-white placeholder-red-300 focus:outline-none focus:ring-2 focus:ring-red-500 transition duration-300 text-xl tracking-widest shadow-inner shadow-black/50">
 
-            <button type="submit"
-                    class="w-full py-3 bg-red-700 text-white text-lg font-bold rounded-lg hover:bg-red-600 active:bg-red-800 transition transform duration-300 hover:scale-[1.02] shadow-xl shadow-red-900/70">
-                ACTIVER LE PROTOCOLE
+            <!-- BOUTON ACCÈS AVEC NOUVELLE ANIMATION DE REMPLISSAGE -->
+            <button type="submit" id="access-protocol-button"
+                    class="w-full py-3 bg-red-700 text-white text-lg font-bold rounded-lg hover:bg-red-600 active:bg-red-800 transition transform duration-300 hover:scale-[1.02] shadow-xl shadow-red-900/70 relative overflow-hidden button-fill-container">
+                
+                <span id="access-button-text" class="button-text-wrapper">ACTIVER LE PROTOCOLE</span>
+
+                <!-- Overlay de Remplissage Liquide -->
+                <div id="access-loader-overlay" class="button-loader-overlay bg-red-600/70">
+                    <span id="access-loader-text" class="button-text-wrapper absolute inset-0 opacity-0">
+                        <svg class="button-spinner h-6 w-6 text-white mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.836 4.305c.291 1.255.438 2.544.438 3.824 0 4.418-3.582 8-8 8s-8-3.582-8-8c0-1.28.147-2.569.438-3.824m-4.882-1.571a.75.75 0 010-1.492.75.75 0 010 1.492zM20 12h2a10 10 0 00-20 0h2zm-8-8v2"></path>
+                        </svg>
+                        Connexion...
+                    </span>
+                </div>
             </button>
         </form>
 
         <p id="message-box" class="mt-6 text-sm text-center text-red-400 min-h-[1.5rem] opacity-0 transition-opacity duration-300"></p>
     </div>
 
-    <!-- 4. PAGE DE CONTENU (Après succès) - MAINTENANT PLEIN ÉCRAN AVEC TÉLÉCHARGEMENT -->
-    <div id="success-content" class="absolute inset-0 opacity-0 pointer-events-none transition-opacity duration-500">
+    <!-- 4. PAGE DE CONTENU (Après succès) - Prend 100% de la fenêtre -->
+    <div id="success-content" class="absolute inset-0 opacity-0 pointer-events-none transition-opacity duration-500 flex flex-col invisible">
+        <!-- Le contenu est centré et stylé à l'intérieur de ce div -->
         <div class="h-full w-full flex flex-col bg-gray-900 border-2 border-red-700 shadow-2xl shadow-red-900/50">
-            <!-- Bandeau de titre Dark Rouge/VERT adapté -->
-            <header id="success-header" class="p-3 bg-red-900/40 border-b-2 border-red-700 transition-colors duration-500">
+            
+            <!-- Bandeau de titre ROUGE/VERT adapté -->
+            <header id="success-header" class="p-3 bg-red-900/40 border-b-2 border-red-700 transition-colors duration-500 flex-shrink-0">
                 <h2 class="text-lg sm:text-xl md:text-2xl font-extrabold text-red-400 tracking-wider text-center transition-colors duration-500" id="header-text">
-                    SPHERE SHADOW — FICHIERS SÉCURISÉS (MEDIAFIRE)
+                    SPHERE SHADOW — FICHIERS SÉCURISÉS
                 </h2>
             </header>
 
-            <!-- Contenu de Téléchargement -->
-            <main class="flex-grow flex flex-col items-center justify-center p-8 text-center">
-                <!-- Titre de téléchargement adapté -->
-                <p class="text-xl sm:text-2xl md:text-3xl font-bold text-red-400 mb-6 px-2 transition-colors duration-500" id="download-title">
-                    FICHIER SHADOW PRÊT AU TÉLÉCHARGEMENT
-                </p>
-                <p class="text-base sm:text-lg text-gray-300 mb-10 p-2 bg-gray-800 rounded-lg shadow-inner">
-                    Nom du Fichier: SHADOW - John Wick 2014.mp4
-                </p>
-
-                <!-- Bouton de Téléchargement Stylé (Taille augmentée et icône améliorée) -->
-                <button id="download-button" onclick="startDownloadLoading()"
-                        class="download-button-visual w-32 h-32 sm:w-36 sm:h-36 md:w-44 md:h-44 flex items-center justify-center bg-red-700 rounded-full shadow-2xl shadow-red-900/80 hover:bg-red-600 transition duration-500 transform hover:scale-105 active:scale-95 group relative overflow-hidden focus:outline-none">
+            <!-- Contenu Principal avec SÉLECTEUR DE CATÉGORIE (Prend l'espace restant) -->
+            <main class="flex-grow flex flex-col items-center justify-start p-4 md:p-8 text-center overflow-auto">
+                
+                <!-- SÉLECTEUR D'ONGLETS (Tabs) - Utilisation de relative pour le slider -->
+                <div id="category-tabs" class="relative flex w-full max-w-lg mb-8 bg-gray-800 p-1 rounded-xl shadow-lg flex-shrink-0">
                     
-                    <!-- Icône de Téléchargement (maintenant plus grande et plus épaisse) -->
-                    <svg class="w-16 h-16 sm:w-20 sm:h-20 text-white transition-transform duration-300 group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
-                    </svg>
-                </button>
+                    <!-- Indicateur Mobile (Slider) -->
+                    <div id="tab-indicator" 
+                         class="absolute top-1 left-1 h-[calc(100%-8px)] w-[calc(50%-4px)] bg-red-700 rounded-xl transition-transform duration-500 ease-in-out shadow-lg shadow-red-900/50"
+                         style="transform: translateX(0);">
+                    </div>
 
-                <p id="download-message" class="mt-6 text-sm text-center text-red-400 opacity-0 transition-opacity duration-300"></p>
+                    <button id="tab-download" onclick="switchView('download')"
+                            class="category-tab relative z-10 flex-1 py-3 text-sm sm:text-lg font-bold rounded-xl transition-colors duration-300 text-white">
+                        Téléchargement de Fichier
+                    </button>
+                    <button id="tab-watch" onclick="switchView('watch')"
+                            class="category-tab relative z-10 flex-1 py-3 text-sm sm:text-lg font-bold rounded-xl transition-colors duration-300 text-red-300 hover:text-red-200">
+                        Lecture Vidéo
+                    </button>
+                </div>
+                
+                <!-- CONTENEUR DES VUES (Transition fluide et RESPONSIVE) -->
+                <div id="view-container" class="relative w-full flex-grow overflow-hidden">
+                    
+                    <!-- 4.1. VUE TÉLÉCHARGEMENT (Download View) -->
+                    <div id="download-view" 
+                         class="absolute inset-0 flex flex-col items-center justify-center p-4 transition-all duration-500 ease-in-out transform translate-x-0 opacity-100 h-full">
+                        
+                        <p id="download-title" class="text-xl sm:text-2xl md:text-3xl font-bold text-red-400 mb-6 px-2 transition-colors duration-500">
+                            FICHIER SHADOW PRÊT AU TÉLÉCHARGEMENT
+                        </p>
+                        <p class="text-base sm:text-lg text-gray-300 mb-10 p-2 bg-gray-800 rounded-lg shadow-inner max-w-sm sm:max-w-md">
+                            Nom du Fichier: SHADOW - John Wick 2014.mp4
+                        </p>
+
+                        <!-- Bouton de Téléchargement Stylé (Icône améliorée) -->
+                        <button id="download-button" onclick="startDownloadLoading()"
+                                class="download-button-visual w-32 h-32 sm:w-36 sm:h-36 md:w-44 md:h-44 flex items-center justify-center bg-red-700 rounded-full shadow-2xl shadow-red-900/80 hover:bg-red-600 transition duration-500 transform hover:scale-105 active:scale-95 group relative overflow-hidden focus:outline-none">
+                            
+                            <!-- Icône de Téléchargement (plus grande et plus épaisse) -->
+                            <svg class="w-16 h-16 sm:w-20 sm:h-20 text-white transition-transform duration-300 group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                            </svg>
+                        </button>
+
+                        <p id="download-message" class="mt-6 text-sm text-center text-red-400 min-h-[1.5rem] opacity-0 transition-opacity duration-300"></p>
+                    </div>
+                    
+                    <!-- 4.2. VUE LECTURE VIDÉO (Watch View) -->
+                    <div id="watch-view" 
+                         class="absolute inset-0 flex flex-col items-center justify-start p-4 transition-all duration-500 ease-in-out transform translate-x-full opacity-0 pointer-events-none h-full invisible">
+                        
+                        <p class="text-xl sm:text-2xl md:text-3xl font-bold text-red-400 mb-6 px-2 flex-shrink-0">
+                            LECTURE : SHADOW - John Wick 2014.mp4
+                        </p>
+
+                        <!-- Cadre Vidéo Stylé (Placeholder) - Prend la largeur max disponible -->
+                        <div class="w-full max-w-4xl aspect-video bg-gray-800 border-4 border-red-700 rounded-xl shadow-2xl flex flex-col items-center justify-center relative overflow-hidden p-6">
+                            
+                            <!-- Animation Placeholder (Pulsing Play Icon) -->
+                            <div class="relative w-24 h-24 mb-4">
+                                <!-- Pulsing Ring (Green/Red based on VPN status) -->
+                                <div id="video-pulse-ring" class="absolute inset-0 border-4 border-red-500 rounded-full opacity-50 animate-ping"></div>
+                                <!-- Play Icon -->
+                                <svg class="absolute inset-0 w-full h-full text-red-600" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2H8c-1.1 0-2 .9-2 2v14zm1-3V8l7 4-7 4z"></path>
+                                </svg>
+                            </div>
+                            
+                            <p class="text-lg sm:text-xl text-red-300 font-mono text-center tracking-wider">
+                                VIDÉO INDISPONIBLE POUR LE MOMENT.<br>VEUILLEZ RÉESSAYER PLUS TARD.
+                            </p>
+                        </div>
+                    </div>
+
+                </div>
             </main>
 
-            <!-- Footer discret Rouge/VERT -->
-            <footer id="success-footer" class="p-1 bg-red-900/40 border-t-2 border-red-700 text-center text-xs text-red-500 transition-colors duration-500">
+            <!-- Footer discret ROUGE/VERT -->
+            <footer id="success-footer" class="p-1 bg-red-900/40 border-t-2 border-red-700 text-center text-xs text-red-500 transition-colors duration-500 flex-shrink-0">
                 Protocole activé. Données transmises via canal sécurisé.
             </footer>
-            
-            <!-- NOUVEAU: Bouton de connexion VPN flottant -->
-            <button onclick="toggleVPNPanel()" id="vpn-toggle-button" 
-                    class="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 p-3 bg-gray-700 text-white rounded-full shadow-lg hover:bg-gray-600 transition duration-300 z-30 focus:outline-none">
-                <!-- Icône Wi-Fi/Connexion -->
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.649A9.95 9.95 0 0112 4c4.418 0 8 3.582 8 8z"></path>
-                </svg>
-            </button>
         </div>
     </div>
     
-    <!-- 5. NOUVEAU: Panneau de Connexion VPN (Apple/Fluent Design) -->
-    <!-- CORRECTION: Ajout de 'invisible' et 'opacity-0' initiales pour garantir qu'aucun pixel n'est visible au chargement -->
-    <div id="vpn-panel" class="fixed bottom-0 right-0 m-4 sm:m-6 w-full max-w-xs transform translate-y-full transition-all duration-500 z-40 invisible opacity-0 pointer-events-none">
+    <!-- 5. Bouton de connexion VPN flottant (CORRECTION: bottom-8 right-8) -->
+    <button onclick="toggleVPNPanel()" id="vpn-toggle-button" 
+            class="fixed bottom-8 right-8 p-4 bg-gray-700 text-white rounded-full shadow-2xl shadow-black/80 hover:bg-gray-600 transition duration-300 z-[99] focus:outline-none relative overflow-visible opacity-0 invisible pointer-events-none border-2 border-white/20">
+        
+        <!-- Pulse Ring (couleur et animation contrôlées par JS) -->
+        <div id="vpn-pulse-ring" class="absolute inset-0 rounded-full border-4 border-red-500 opacity-0 transform scale-100 transition-all duration-500 ease-out pointer-events-none"></div>
+        
+        <!-- Icône Cadenas/Connexion (Le logo de connexion) -->
+        <svg id="vpn-lock-icon" class="w-6 h-6 transition-colors duration-500 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"></path>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 7h2m-2 0V5a2 2 0 114 0v2m-4 0v2"></path>
+        </svg>
+    </button>
+    
+    <!-- 6. Panneau de Connexion VPN -->
+    <div id="vpn-panel" class="fixed bottom-0 right-0 m-8 w-full max-w-xs transform translate-y-full transition-all duration-500 z-[98] invisible opacity-0 pointer-events-none">
         <!-- Conteneur avec effet de flou -->
         <div class="vpn-panel-blur border border-white/20 rounded-xl shadow-2xl p-4">
             
@@ -213,16 +341,20 @@
                 <input type="password" id="vpn-secret-code" placeholder="Mot de passe VPN..." required
                        class="w-full p-2 mb-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-1 focus:ring-green-400 text-sm">
                        
+                <!-- BOUTON CONNEXION VPN AVEC NOUVELLE ANIMATION DE REMPLISSAGE -->
                 <button type="submit" id="vpn-connect-button"
-                        class="w-full py-2 bg-green-600 text-white text-sm font-bold rounded-lg hover:bg-green-500 transition duration-300 relative overflow-hidden">
-                    <span id="vpn-button-text">Se Connecter</span>
+                        class="w-full py-2 bg-green-700 text-white text-sm font-bold rounded-lg hover:bg-green-600 transition duration-300 relative overflow-hidden button-fill-container">
                     
-                    <!-- Loader de 6 secondes -->
-                    <div id="vpn-loading-overlay" class="absolute inset-0 bg-green-700 flex items-center justify-center opacity-0 transition-opacity duration-300 pointer-events-none">
-                        <svg class="button-spinner h-4 w-4 text-white mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.836 4.305c.291 1.255.438 2.544.438 3.824 0 4.418-3.582 8-8 8s-8-3.582-8-8c0-1.28.147-2.569.438-3.824m-4.882-1.571a.75.75 0 010-1.492.75.75 0 010 1.492zM20 12h2a10 10 0 00-20 0h2zm-8-8v2"></path>
-                        </svg>
-                        Vérification...
+                    <span id="vpn-button-text" class="button-text-wrapper">Se Connecter</span>
+                    
+                    <!-- Overlay de Remplissage Liquide -->
+                    <div id="vpn-loader-overlay" class="button-loader-overlay bg-green-600/70">
+                        <span id="vpn-loader-text" class="button-text-wrapper absolute inset-0 opacity-0">
+                            <svg class="button-spinner h-4 w-4 text-white mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.836 4.305c.291 1.255.438 2.544.438 3.824 0 4.418-3.582 8-8 8s-8-3.582-8-8c0-1.28.147-2.569.438-3.824m-4.882-1.571a.75.75 0 010-1.492.75.75 0 010 1.492zM20 12h2a10 10 0 00-20 0h2zm-8-8v2"></path>
+                            </svg>
+                            Vérification...
+                        </span>
                     </div>
                 </button>
                 
@@ -237,22 +369,21 @@
         // === Configuration et Variables Globales ===
         const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
         const SESSION_DURATION_MS = 10 * 60 * 1000; 
-        const LOADING_DURATION_MS = 5000;
-        const COOKIE_LOADING_DURATION_MS = 3000;
-        const VPN_LOADING_MS = 6000; 
+        const LOADING_DURATION_MS = 5000; // Chargement principal
+        const COOKIE_LOADING_DURATION_MS = 3000; // Chargement Cookie
+        const VPN_LOADING_MS = 6000; // Chargement VPN
         
         const SECRET_CODES = ['95741', 'ERVIS', 'SHADOW1'];
         const VPN_SECRET_CODES = ['VPNSECURE', 'SECURESHADOW']; 
+        const DOWNLOAD_URL = 'https://placehold.co/1000x600/0d0d0d/e53e3e?text=FICHIER%20SECURISE%20TELECHARGE'; 
         
         const STORAGE_KEY = 'lastCookieCheck';
         const SESSION_EXPIRY_KEY = 'sessionExpiry'; 
         const VPN_STATUS_KEY = 'vpnStatus'; 
-        const DOWNLOAD_URL = 'https://download1324.mediafire.com/elrhudzhi7egOf-ywAD086yPBeBHmLuhno6u_x0bxmZ93dRdnt_AdYoqPUL_wJd7nfN6y8XmwZ7UbdZuHbmWjFNTtRc2kOVJVy-p09tl_y77cyvkxe30ukub3r5EkILF_YMNRWeZ8J3-XyHgwWXonGnUOvp1_SU0BLZNRfZCpCQi/zmd22b97ksn9ibb/SHADOW+-+John+Wick+2014.mp4';
         
         // Constantes de Verrouillage
         const MAX_ATTEMPTS = 3;
         const LOCKOUT_DURATION_MS = 24 * 60 * 60 * 1000; 
-        const WARNING_TIME_MS = 3 * 60 * 60 * 1000; 
         const ATTEMPTS_KEY = 'failedAttempts';
         const LOCKOUT_EXPIRY_KEY = 'lockoutExpiry';
         
@@ -269,26 +400,35 @@
         const downloadButton = document.getElementById('download-button');
         const lockoutStatusElement = document.getElementById('lockout-status');
         
-        // DOM pour le VPN
+        // DOM pour les boutons et leurs loaders (Nouveaux)
+        const acceptCookieButton = document.getElementById('accept-cookie-button');
+        const accessProtocolButton = document.getElementById('access-protocol-button');
+        const vpnConnectButton = document.getElementById('vpn-connect-button');
+        
+        // DOM pour le VPN (Icône et Panneau)
+        const vpnToggleButton = document.getElementById('vpn-toggle-button');
+        const vpnLockIcon = document.getElementById('vpn-lock-icon');
+        const vpnPulseRing = document.getElementById('vpn-pulse-ring');
         const vpnPanel = document.getElementById('vpn-panel');
         const vpnPasswordForm = document.getElementById('vpn-password-form');
         const vpnSecretCodeInput = document.getElementById('vpn-secret-code');
         const vpnMessageBox = document.getElementById('vpn-message-box');
-        const vpnConnectButton = document.getElementById('vpn-connect-button');
-        const vpnLoadingOverlay = document.getElementById('vpn-loading-overlay');
-        const vpnButtonText = document.getElementById('vpn-button-text');
         const vpnDisconnectButton = document.getElementById('vpn-disconnect-button');
-        
-        // DOM pour les visuels
+        const videoPulseRing = document.getElementById('video-pulse-ring');
+
+        // DOM pour les Vues et Transitions
         const successHeader = document.getElementById('success-header');
         const successFooter = document.getElementById('success-footer');
         const downloadButtonVisual = document.querySelector('.download-button-visual');
         const downloadMessageBox = document.getElementById('download-message'); 
-        const cookieButtonText = document.getElementById('cookie-button-text'); 
-        const cookieLoader = document.getElementById('cookie-loader'); 
+        const downloadView = document.getElementById('download-view');
+        const watchView = document.getElementById('watch-view');
+        const viewContainer = document.getElementById('view-container');
+        const tabIndicator = document.getElementById('tab-indicator');
 
-
+        // État Global de la Vue
         let timerTimeoutId = null;
+        let currentView = 'download'; 
 
         // === Fonctions d'Utilité ===
 
@@ -347,6 +487,50 @@
                 downloadMessageBox.classList.remove('opacity-100');
             }, 3000);
         }
+        
+        /**
+         * Nouveau: Gère l'animation de remplissage liquide sur les boutons.
+         * @param {string} buttonId - ID de l'élément bouton conteneur.
+         * @param {string} visibleTextId - ID du span contenant le texte initial (e.g., 'cookie-button-text'). <-- NOUVEAU PARAMÈTRE POUR FIXER LE BUG
+         * @param {number} durationMs - Durée de l'animation en ms.
+         * @param {Function} onComplete - Callback à exécuter après la durée.
+         */
+        function startButtonLoading(buttonId, visibleTextId, durationMs, onComplete) {
+            const button = document.getElementById(buttonId);
+            const overlay = button.querySelector('.button-loader-overlay');
+            const mainText = document.getElementById(visibleTextId); // FIX: Utiliser l'ID explicite pour le texte principal
+            const loaderText = overlay.querySelector('.button-text-wrapper'); // Texte à afficher dans l'overlay
+            
+            // Vérification de sécurité
+            if (!button || !overlay || !mainText || !loaderText) {
+                console.error(`Erreur: Impossible de trouver les éléments nécessaires pour l'animation du bouton ${buttonId}.`);
+                button.disabled = false;
+                if (onComplete) onComplete();
+                return;
+            }
+
+            button.disabled = true;
+            mainText.style.opacity = 0;
+            loaderText.classList.remove('opacity-0');
+            loaderText.classList.add('opacity-100');
+            
+            // Applique la durée pour l'animation de remplissage
+            overlay.style.transitionDuration = `${durationMs}ms`;
+            // Déclenche l'animation de remplissage à 100%
+            overlay.style.width = '100%';
+
+            setTimeout(() => {
+                // Réinitialiser l'état
+                overlay.style.transitionDuration = '0ms';
+                overlay.style.width = '0%';
+                loaderText.classList.remove('opacity-100');
+                loaderText.classList.add('opacity-0');
+                mainText.style.opacity = 1;
+                button.disabled = false;
+                
+                if (onComplete) onComplete();
+            }, durationMs);
+        }
 
 
         // === Fonctions de Contrôle de l'Affichage et de la Sécurité ===
@@ -377,17 +561,17 @@
 
         /** Affiche un élément avec une animation fluide. */
         function showModal(element) {
-            element.classList.remove('pointer-events-none', 'opacity-0');
+            element.classList.remove('pointer-events-none', 'opacity-0', 'invisible');
             requestAnimationFrame(() => {
                 element.classList.add('opacity-100');
-                const modalContent = element.querySelector('div');
+                const modalContent = element.querySelector('div:not([id])');
                 if (modalContent && modalContent.classList.contains('scale-95')) modalContent.classList.remove('scale-95');
             });
         }
 
         /** Cache un élément avec une animation fluide. */
         function hideModal(element, callback) {
-            const modalContent = element.querySelector('div');
+            const modalContent = element.querySelector('div:not([id])');
             if (modalContent && modalContent.classList.contains('scale-95')) modalContent.classList.add('scale-95');
 
             element.classList.remove('opacity-100');
@@ -395,6 +579,7 @@
 
             setTimeout(() => {
                 element.classList.add('pointer-events-none');
+                element.classList.add('invisible');
                 if (callback) callback();
             }, 700);
         }
@@ -403,10 +588,10 @@
         function showGate(isSuccess = false) {
             if (isSuccess) {
                 hideModal(cookieModal);
-                showSuccessPage();
+                startLoading(); // Utiliser le chargement pour simuler l'accès
             } else {
                 hideModal(cookieModal);
-                accessGate.classList.remove('opacity-0', 'pointer-events-none');
+                accessGate.classList.remove('opacity-0', 'pointer-events-none', 'invisible');
                 accessGate.classList.add('opacity-100');
                 checkLockoutStatus();
             }
@@ -418,12 +603,13 @@
             
             const expiryTime = localStorage.getItem(LOCKOUT_EXPIRY_KEY);
             const attempts = parseInt(localStorage.getItem(ATTEMPTS_KEY) || 0);
-            const accessButton = accessForm.querySelector('button[type="submit"]');
+            const accessButton = accessProtocolButton; // Utiliser la référence globale
 
             if (expiryTime && parseInt(expiryTime) > Date.now()) {
                 secretCodeInput.disabled = true;
                 accessButton.disabled = true;
-                accessButton.textContent = "VERROUILLÉ";
+                // La mise à jour du texte du bouton doit être faite sur le span visible
+                document.getElementById('access-button-text').textContent = "VERROUILLÉ";
                 displayMessage("Le protocole de sécurité est activé. Tentative d'intrusion détectée.", true);
                 updateLockoutTimer();
                 return true;
@@ -432,7 +618,7 @@
                 
                 secretCodeInput.disabled = false;
                 accessButton.disabled = false;
-                accessButton.textContent = "ACTIVER LE PROTOCOLE";
+                document.getElementById('access-button-text').textContent = "ACTIVER LE PROTOCOLE";
                 
                 lockoutStatusElement.classList.remove('lockout-warning');
 
@@ -475,11 +661,15 @@
         /** Affiche le contenu final (page de téléchargement) et initialise les couleurs. */
         function showSuccessPage() {
             hideModal(loadingScreen);
-            showModal(successContent);
-            if (downloadButton) downloadButton.disabled = false;
             
-            // CORRECTION: Assure que le panneau VPN est initialement invisible et inactif sur la page de succès
-            vpnPanel.classList.add('invisible', 'opacity-0', 'translate-y-full', 'pointer-events-none'); 
+            // RENDRE LE CONTENU PRINCIPAL ET LE BOUTON VPN VISIBLES
+            successContent.classList.remove('opacity-0', 'pointer-events-none', 'invisible');
+            successContent.classList.add('opacity-100');
+            
+            vpnToggleButton.classList.remove('opacity-0', 'pointer-events-none', 'invisible');
+            vpnToggleButton.classList.add('opacity-100');
+
+            if (downloadButton) downloadButton.disabled = false;
 
             // Initialise les visuels selon le statut VPN
             const isVpnConnected = localStorage.getItem(VPN_STATUS_KEY) === 'true';
@@ -514,34 +704,101 @@
                 vpnDisconnectButton.classList.add('opacity-0', 'pointer-events-none');
                 vpnDisconnectButton.classList.remove('opacity-100', 'bg-green-600');
             }
+
+            // 5. VPN Toggle Button Visuals (Pulse et Cadenas)
+            vpnLockIcon.classList.remove(`text-${oppositeColorClass}-500`);
+            vpnLockIcon.classList.add(`text-${colorClass}-500`);
+
+            // Pulse Ring Animation sur l'icône VPN
+            if (isConnected) {
+                vpnPulseRing.style.borderColor = `rgb(34 197 94 / 1)`; // green-500
+                vpnPulseRing.classList.remove('border-red-500');
+                vpnPulseRing.classList.add('border-green-500', 'pulse-vpn-active');
+            } else {
+                vpnPulseRing.style.borderColor = `rgb(239 68 68 / 1)`; // red-500
+                vpnPulseRing.classList.remove('border-green-500');
+                vpnPulseRing.classList.add('border-red-500', 'pulse-vpn-active');
+            }
+            
+            // 6. Pulse Ring sur le Placeholder Vidéo
+            if (isConnected) {
+                videoPulseRing.classList.remove('border-red-500');
+                videoPulseRing.classList.add('border-green-500');
+            } else {
+                videoPulseRing.classList.remove('border-green-500');
+                videoPulseRing.classList.add('border-red-500');
+            }
         }
         
+        /** Bascule entre la vue de téléchargement et la vue de lecture avec transition stylée. */
+        window.switchView = function(viewName) {
+            if (currentView === viewName) return;
+
+            const currentElement = currentView === 'download' ? downloadView : watchView;
+            const targetElement = viewName === 'download' ? downloadView : watchView;
+            
+            // Déterminer la direction de la transition: 'download' (left) vers 'watch' (right) est vers la gauche (-100%)
+            const isMovingLeft = viewName === 'watch';
+
+            // --- Logique du Slider d'Onglet (Nouveau) ---
+            const targetTransform = isMovingLeft ? 'translateX(100%)' : 'translateX(0)';
+            tabIndicator.style.transform = targetTransform;
+            
+            // Mise à jour de la couleur du texte des onglets
+            document.getElementById(`tab-download`).classList.remove('text-white', 'text-red-300');
+            document.getElementById(`tab-watch`).classList.remove('text-white', 'text-red-300');
+
+            if (viewName === 'download') {
+                document.getElementById('tab-download').classList.add('text-white');
+                document.getElementById('tab-watch').classList.add('text-red-300');
+            } else {
+                document.getElementById('tab-download').classList.add('text-red-300');
+                document.getElementById('tab-watch').classList.add('text-white');
+            }
+            
+            // --- Logique du Contenu de Vue (Ancien, mais essentiel) ---
+            
+            // 1. Préparer l'élément cible hors écran
+            targetElement.classList.remove('pointer-events-none', 'invisible');
+            targetElement.style.transform = `translateX(${isMovingLeft ? '100%' : '-100%'})`;
+            targetElement.style.opacity = '0';
+            
+            // 2. Forcer un redraw 
+            viewContainer.offsetWidth; 
+
+            // 3. Lancer la transition pour les deux éléments simultanément
+            currentElement.style.transform = `translateX(${isMovingLeft ? '-100%' : '100%'})`;
+            currentElement.style.opacity = '0';
+            currentElement.classList.add('pointer-events-none'); 
+
+            targetElement.style.transform = 'translateX(0)';
+            targetElement.style.opacity = '1';
+
+            // 4. Mettre à jour l'état après la transition
+            setTimeout(() => {
+                currentElement.classList.add('invisible');
+                targetElement.classList.remove('pointer-events-none');
+                currentView = viewName;
+            }, 500); 
+        }
+
+
+        // === Le reste des fonctions (gestion des cookies, VPN, etc.) reste inchangé ===
+
         /** Gère l'acceptation ou le refus des cookies. */
         window.handleCookieAcceptance = function(accepted) {
             if (accepted) {
-                // Afficher l'animation de chargement du bouton
-                cookieButtonText.style.opacity = 0;
-                cookieLoader.classList.remove('opacity-0', 'pointer-events-none');
-                cookieLoader.classList.add('opacity-100');
-
-                // Simuler le temps d'analyse
-                setTimeout(() => {
+                // FIX: Ajout de 'cookie-button-text' pour identifier le span à masquer
+                startButtonLoading('accept-cookie-button', 'cookie-button-text', COOKIE_LOADING_DURATION_MS, () => {
                     localStorage.setItem(STORAGE_KEY, Date.now());
                     hideModal(cookieModal, () => {
-                        showGate(false); // Passe à la porte d'accès
+                        showGate(false); 
                     });
-                }, COOKIE_LOADING_DURATION_MS);
-
+                });
             } else {
-                // Refus (Simule une "fermeture" en cachant le modal et en le réaffichant au besoin)
                 hideModal(cookieModal, () => {
-                    // Si l'utilisateur refuse, on affiche l'écran de login, mais il peut revenir.
                     showGate(false); 
                     displayMessage("Protocole requis non accepté. Accès possible mais non recommandé.", true);
-                    
-                    // Réinitialiser le statut du bouton de cookie pour permettre une nouvelle tentative
-                    cookieButtonText.style.opacity = 1;
-                    cookieLoader.classList.add('opacity-0', 'pointer-events-none');
                 });
             }
         }
@@ -552,8 +809,10 @@
             displayDownloadMessage("Téléchargement initié... Redirection vers le fichier sécurisé.", false);
             
             setTimeout(() => {
-                // Ceci simule le téléchargement. 
-                displayDownloadMessage("Téléchargement simulé réussi. Fichier prêt.", false);
+                // --- AJOUT DE LA REDIRECTION SIMULÉE ---
+                window.open(DOWNLOAD_URL, '_blank'); 
+                
+                displayDownloadMessage("Fichier sécurisé envoyé dans une nouvelle fenêtre.", false);
                 downloadButton.disabled = false; 
             }, 2000); 
         }
@@ -563,7 +822,6 @@
             if (vpnPanel.classList.contains('translate-y-full')) {
                 // Ouvrir (Retire invisible/opacity-0, puis décale)
                 vpnPanel.classList.remove('invisible', 'opacity-0', 'pointer-events-none');
-                // Donne 50ms pour que les classes d'opacité/visibilité soient appliquées avant la transition de glissement
                 setTimeout(() => {
                     vpnPanel.classList.remove('translate-y-full');
                 }, 50);
@@ -575,7 +833,7 @@
                 
                 setTimeout(() => {
                     vpnPanel.classList.add('invisible', 'opacity-0');
-                }, 500); // Temps après la fin de la transition (duration-500)
+                }, 500); 
             }
         }
         
@@ -606,31 +864,44 @@
             
             const inputCode = secretCodeInput.value.trim().toUpperCase();
 
-            if (SECRET_CODES.includes(inputCode)) {
-                // --- SUCCÈS ---
-                localStorage.removeItem(ATTEMPTS_KEY);
-                localStorage.removeItem(LOCKOUT_EXPIRY_KEY);
-                lockoutStatusElement.textContent = '';
-                
-                displayMessage("ACCÈS AUTORISÉ. Préparation...", false);
-                startLoading();
-            } else {
-                // --- ÉCHEC ---
-                let attempts = parseInt(localStorage.getItem(ATTEMPTS_KEY) || 0) + 1;
-                localStorage.setItem(ATTEMPTS_KEY, attempts);
-
-                secretCodeInput.value = '';
-
-                if (attempts >= MAX_ATTEMPTS) {
-                    const expiryTime = Date.now() + LOCKOUT_DURATION_MS;
-                    localStorage.setItem(LOCKOUT_EXPIRY_KEY, expiryTime);
-
-                    displayMessage("CLÉ INVALIDE. ACCÈS TEMPORAIREMENT BLOQUÉ (24h).", true);
-                    checkLockoutStatus();
+            // Démarrer l'animation de remplissage ici (durée de 5s pour correspondre au chargement)
+            // FIX: Ajout de 'access-button-text' pour identifier le span à masquer
+            startButtonLoading('access-protocol-button', 'access-button-text', LOADING_DURATION_MS, () => {
+                // Cette partie est exécutée APRÈS l'animation de 5s
+                if (SECRET_CODES.includes(inputCode)) {
+                    // --- SUCCÈS ---
+                    localStorage.removeItem(ATTEMPTS_KEY);
+                    localStorage.removeItem(LOCKOUT_EXPIRY_KEY);
+                    lockoutStatusElement.textContent = '';
+                    
+                    displayMessage("ACCÈS AUTORISÉ. Préparation...", false);
+                    
+                    localStorage.setItem(SESSION_EXPIRY_KEY, Date.now() + SESSION_DURATION_MS);
+                    showSuccessPage(); 
+                    
                 } else {
-                    displayMessage("CLÉ D'ACCÈS INVALIDE. Tentative enregistrée.", true);
-                    lockoutStatusElement.textContent = `Tentative d'accès: ${attempts}/${MAX_ATTEMPTS}`;
+                    // --- ÉCHEC ---
+                    let attempts = parseInt(localStorage.getItem(ATTEMPTS_KEY) || 0) + 1;
+                    localStorage.setItem(ATTEMPTS_KEY, attempts);
+
+                    secretCodeInput.value = '';
+
+                    if (attempts >= MAX_ATTEMPTS) {
+                        const expiryTime = Date.now() + LOCKOUT_DURATION_MS;
+                        localStorage.setItem(LOCKOUT_EXPIRY_KEY, expiryTime);
+
+                        displayMessage("CLÉ INVALIDE. ACCÈS TEMPORAIREMENT BLOQUÉ (24h).", true);
+                        checkLockoutStatus();
+                    } else {
+                        displayMessage("CLÉ D'ACCÈS INVALIDE. Tentative enregistrée.", true);
+                        lockoutStatusElement.textContent = `Tentative d'accès: ${attempts}/${MAX_ATTEMPTS}`;
+                    }
                 }
+            });
+            
+            // On affiche le message de "préparation" ici, mais le changement de vue est dans le callback.
+            if (SECRET_CODES.includes(inputCode)) {
+                 displayMessage("CLÉ D'ACCÈS VALIDÉE. Chargement du protocole.", false);
             }
         });
         
@@ -640,26 +911,17 @@
             
             const vpnInputCode = vpnSecretCodeInput.value.trim().toUpperCase();
             
-            // Désactiver le bouton et afficher le loader
-            vpnConnectButton.disabled = true;
-            vpnButtonText.style.visibility = 'hidden';
-            vpnLoadingOverlay.classList.remove('pointer-events-none', 'opacity-0');
-            vpnLoadingOverlay.classList.add('opacity-100');
-
-            setTimeout(() => {
-                // Rétablir l'état du bouton
-                vpnConnectButton.disabled = false;
-                vpnButtonText.style.visibility = 'visible';
-                vpnLoadingOverlay.classList.add('opacity-0', 'pointer-events-none');
-
+            // FIX: Ajout de 'vpn-button-text' pour identifier le span à masquer
+            startButtonLoading('vpn-connect-button', 'vpn-button-text', VPN_LOADING_MS, () => {
+                // Cette partie est exécutée APRÈS l'animation de 6s
                 if (VPN_SECRET_CODES.includes(vpnInputCode)) {
                     // --- SUCCÈS VPN ---
                     localStorage.setItem(VPN_STATUS_KEY, 'true');
                     updateSecurityVisuals(true); // Bascule en VERT
                     displayMessageVPN("Connecté au SHADOW VPN. Connexion Sécurisée.", false);
-                    vpnPasswordForm.classList.add('hidden'); // Cache le formulaire après succès
+                    vpnPasswordForm.classList.add('hidden'); 
                     vpnSecretCodeInput.value = '';
-                    setTimeout(toggleVPNPanel, 1000); // Ferme le panneau après 1s
+                    setTimeout(toggleVPNPanel, 1000); 
                 } else {
                     // --- ÉCHEC VPN ---
                     localStorage.setItem(VPN_STATUS_KEY, 'false');
@@ -667,7 +929,7 @@
                     displayMessageVPN("Mot de passe VPN invalide.", true);
                     vpnSecretCodeInput.value = '';
                 }
-            }, VPN_LOADING_MS); // 6 secondes de chargement
+            });
         });
 
 
